@@ -118,13 +118,14 @@ const char *TaskSystemParallelThreadPoolSpinning::name() {
 
 TaskSystemParallelThreadPoolSpinning::TaskSystemParallelThreadPoolSpinning(
     int num_threads)
-    : ITaskSystem(num_threads) {
+    : ITaskSystem(num_threads), num_threads(num_threads) {
   //
   // TODO: CS149 student implementations may decide to perform setup
   // operations (such as thread pool construction) here.
   // Implementations are free to add new class member variables
   // (requiring changes to tasksys.h).
   //
+  pool_ = new ThreadPool(num_threads);
 }
 
 TaskSystemParallelThreadPoolSpinning::~TaskSystemParallelThreadPoolSpinning() {}
@@ -138,9 +139,19 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable *runnable,
   // tasks sequentially on the calling thread.
   //
 
-  for (int i = 0; i < num_total_tasks; i++) {
-    runnable->runTask(i, num_total_tasks);
+  int tasks_per_thread = (num_total_tasks + num_threads - 1) / num_threads;
+
+  for (int i = 0; i < num_threads; i++) {
+    int start = i * tasks_per_thread;
+    int end = std::min(start + tasks_per_thread, num_total_tasks);
+
+    pool_->enqueue([runnable, start, end, num_total_tasks]() {
+      for (int j = start; j < end; j++) {
+        runnable->runTask(j, num_total_tasks);
+      }
+    });
   }
+  pool_->waitAllTasks();
 }
 
 TaskID TaskSystemParallelThreadPoolSpinning::runAsyncWithDeps(
